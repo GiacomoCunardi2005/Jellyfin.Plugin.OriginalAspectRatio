@@ -1,6 +1,6 @@
 {
     "category": "Metadata",
-    "changelog": "Display saved aspect ratios in Jellyfin Web when JavaScript Injector or File Transformation is installed.\n",
+    "changelog": "Display saved aspect ratios in Jellyfin Web through File Transformation, with JavaScript Injector as a fallback.\n",
     "description": "OriginalAspectRatio analyzes videos, saves the native AspectRatio metadata field, and can display it in Jellyfin Web.\n",
     "guid": "1b77aa92-62b6-43d7-ae75-6ab2251c05a2",
     "name": "OriginalAspectRatio",

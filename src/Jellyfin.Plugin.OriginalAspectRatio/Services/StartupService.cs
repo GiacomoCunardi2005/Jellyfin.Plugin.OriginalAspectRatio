@@ -41,23 +41,30 @@ public sealed class StartupService : IHostedService
     {
         cancellationToken.ThrowIfCancellationRequested();
 
-        if (string.IsNullOrWhiteSpace(_script.Value))
+        var script = _script.Value;
+        if (string.IsNullOrWhiteSpace(script))
         {
             _logger.LogError("Could not load the embedded aspect-ratio display script.");
             return Task.CompletedTask;
         }
 
-        if (TryRegisterWithJavaScriptInjector(_script.Value))
-        {
-            return Task.CompletedTask;
-        }
+        _logger.LogInformation(
+            "Starting aspect-ratio display registration for plugin version {PluginVersion}; embedded script contains {ScriptLength} characters.",
+            typeof(StartupService).Assembly.GetName().Version?.ToString() ?? "unknown",
+            script.Length);
 
+        // File Transformation modifies the served response and is more reliable than an index.html rewrite in Docker.
         if (TryRegisterWithFileTransformation())
         {
             return Task.CompletedTask;
         }
 
-        _logger.LogInformation("No supported Jellyfin Web injector is available; aspect-ratio detection remains active.");
+        if (TryRegisterWithJavaScriptInjector(script))
+        {
+            return Task.CompletedTask;
+        }
+
+        _logger.LogWarning("No supported Jellyfin Web injector registered the aspect-ratio display script; aspect-ratio detection remains active.");
         return Task.CompletedTask;
     }
 
@@ -99,19 +106,23 @@ public sealed class StartupService : IHostedService
             ["pluginVersion"] = typeof(StartupService).Assembly.GetName().Version?.ToString() ?? "1.1.0.0"
         };
 
-        if (TryInvokeRegistration(
+        if (!TryInvokeRegistration(
                 JavaScriptInjectorAssemblyName,
                 JavaScriptInjectorInterfaceName,
                 "RegisterScript",
                 registration,
-                out var result)
-            && result is bool registered
-            && registered)
+                out var result))
+        {
+            return false;
+        }
+
+        if (result is bool registered && registered)
         {
             _logger.LogInformation("Registered the aspect-ratio display script with JavaScript Injector.");
             return true;
         }
 
+        _logger.LogWarning("JavaScript Injector did not accept the aspect-ratio display script.");
         return false;
     }
 
@@ -149,10 +160,22 @@ public sealed class StartupService : IHostedService
     {
         result = null;
 
-        var pluginInterface = AssemblyLoadContext.All
+        var assembly = AssemblyLoadContext.All
             .SelectMany(context => context.Assemblies)
-            .FirstOrDefault(assembly => string.Equals(assembly.GetName().Name, assemblyName, StringComparison.Ordinal))
-            ?.GetType(interfaceName);
+            .FirstOrDefault(candidate => string.Equals(candidate.GetName().Name, assemblyName, StringComparison.Ordinal));
+        if (assembly is null)
+        {
+            _logger.LogInformation("{AssemblyName} is not loaded; its frontend injection method is unavailable.", assemblyName);
+            return false;
+        }
+
+        var pluginInterface = assembly.GetType(interfaceName);
+        if (pluginInterface is null)
+        {
+            _logger.LogWarning("{AssemblyName} is loaded but does not expose {InterfaceName}.", assemblyName, interfaceName);
+            return false;
+        }
+
         var method = pluginInterface?
             .GetMethods(BindingFlags.Public | BindingFlags.Static)
             .FirstOrDefault(candidate => string.Equals(candidate.Name, methodName, StringComparison.Ordinal)
@@ -160,6 +183,7 @@ public sealed class StartupService : IHostedService
 
         if (method is null)
         {
+            _logger.LogWarning("{InterfaceName} does not expose {MethodName}(JObject).", interfaceName, methodName);
             return false;
         }
 
@@ -176,15 +200,17 @@ public sealed class StartupService : IHostedService
 
             if (payload is null)
             {
+                _logger.LogWarning("Could not construct the registration payload expected by {AssemblyName}.", assemblyName);
                 return false;
             }
 
             result = method.Invoke(null, new[] { payload });
+            _logger.LogDebug("Invoked {MethodName} on {AssemblyName}.", methodName, assemblyName);
             return true;
         }
         catch (Exception exception)
         {
-            _logger.LogDebug(exception, "Could not register the aspect-ratio display script with {AssemblyName}.", assemblyName);
+            _logger.LogWarning(exception, "Could not register the aspect-ratio display script with {AssemblyName}.", assemblyName);
             return false;
         }
     }

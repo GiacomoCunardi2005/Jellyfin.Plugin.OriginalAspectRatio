@@ -1,7 +1,21 @@
 (function () {
     'use strict';
 
-    function getItemId() {
+    var logPrefix = '[Original Aspect Ratio]';
+
+    if (globalThis.__originalAspectRatioDisplayLoaded) {
+        console.debug(logPrefix + ' Display script was already loaded.');
+        return;
+    }
+
+    globalThis.__originalAspectRatioDisplayLoaded = true;
+
+    function getItemId(event) {
+        var eventItemId = event && event.detail && event.detail.params && event.detail.params.id;
+        if (eventItemId) {
+            return eventItemId;
+        }
+
         var queryStart = window.location.hash.indexOf('?');
         if (queryStart === -1) {
             return null;
@@ -11,20 +25,8 @@
     }
 
     function formatAspectRatio(value) {
-        var text = String(value || '').trim();
-        if (!text || text.indexOf(':') !== -1) {
-            return text;
-        }
-
-        var ratio = Number.parseFloat(text.replace(',', '.'));
-        if (!Number.isFinite(ratio)) {
-            return text;
-        }
-
-        return ratio.toLocaleString(undefined, {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2
-        }) + ':1';
+        var text = String(value ?? '').trim();
+        return text && text.indexOf(':') === -1 ? text + ':1' : text;
     }
 
     function createDetailsGroup(aspectRatio) {
@@ -33,7 +35,7 @@
 
         var label = document.createElement('div');
         label.className = 'label';
-        label.textContent = 'Formato immagine';
+        label.textContent = 'Rapporto d’aspetto originale';
 
         var content = document.createElement('div');
         content.className = 'content';
@@ -43,10 +45,15 @@
         return group;
     }
 
-    async function render(page) {
-        var itemId = getItemId();
+    async function render(page, itemId) {
         var apiClient = globalThis.ApiClient;
-        if (!itemId || !apiClient) {
+        if (!itemId) {
+            console.debug(logPrefix + ' Cannot render because the item id is unavailable.');
+            return;
+        }
+
+        if (!apiClient) {
+            console.warn(logPrefix + ' Cannot render because ApiClient is unavailable.');
             return;
         }
 
@@ -57,31 +64,57 @@
                 existing.remove();
             }
 
-            if (!item || !item.AspectRatio) {
+            var aspectRatio = String(item?.AspectRatio ?? '').trim();
+            console.debug(logPrefix + ' API returned AspectRatio for item ' + itemId + ':', aspectRatio || '(empty)');
+            if (!aspectRatio) {
+                console.debug(logPrefix + ' No aspect ratio is available; no row was rendered.');
                 return;
             }
 
-            var group = createDetailsGroup(item.AspectRatio);
+            var group = createDetailsGroup(aspectRatio);
+            var genres = page.querySelector('.genresGroup');
+            if (genres) {
+                genres.insertAdjacentElement('beforebegin', group);
+                console.debug(logPrefix + ' Rendered the aspect-ratio row before genres.');
+                return;
+            }
+
             var directors = page.querySelector('.directorsGroup');
             if (directors) {
                 directors.insertAdjacentElement('afterend', group);
+                console.debug(logPrefix + ' Rendered the aspect-ratio row after directors.');
                 return;
             }
 
-            page.querySelector('.itemDetailsGroup')?.append(group);
+            var details = page.querySelector('.itemDetailsGroup');
+            if (details) {
+                details.append(group);
+                console.debug(logPrefix + ' Rendered the aspect-ratio row in the details group fallback.');
+                return;
+            }
+
+            console.warn(logPrefix + ' Could not find an item-details insertion point.');
         } catch (error) {
-            console.debug('Original Aspect Ratio: unable to load item details.', error);
+            console.warn(logPrefix + ' Unable to load item details.', error);
         }
     }
 
-    document.addEventListener('viewshow', function (event) {
-        var page = event.target;
-        if (!(page instanceof HTMLElement) || page.id !== 'itemDetailPage') {
+    function scheduleRender(page, event) {
+        if (!page || page.id !== 'itemDetailPage') {
             return;
         }
 
+        var itemId = getItemId(event);
+        console.debug(logPrefix + ' Scheduling detail-page render for item:', itemId || '(unknown)');
         window.setTimeout(function () {
-            void render(page);
+            void render(page, itemId);
         }, 0);
+    }
+
+    document.addEventListener('viewshow', function (event) {
+        scheduleRender(event.target, event);
     });
+
+    console.info(logPrefix + ' Display script loaded.');
+    scheduleRender(document.querySelector('#itemDetailPage'));
 }());

@@ -102,7 +102,11 @@ public class OriginalAspectRatioMetadataProvider :
 
         if (!string.IsNullOrWhiteSpace(aspectRatioItem.AspectRatio) && !ShouldOverrideExistingAspectRatio)
         {
-            _logger.LogInformation("Item {0} already has an original aspect ratio defined, skipping.", item.Name);
+            _logger.LogInformation(
+                "Item {ItemId} ({ItemName}) already has native AspectRatio '{AspectRatio}', skipping.",
+                item.Id,
+                item.Name,
+                aspectRatioItem.AspectRatio);
             return _cachedTask;
         }
 
@@ -222,7 +226,11 @@ public class OriginalAspectRatioMetadataProvider :
 
         aspectRatioItem.AspectRatio = acceptedOriginalAspectRatio;
 
-        _logger.LogInformation("Saved original aspect ratio of {0} for {1}.", acceptedOriginalAspectRatioValue, item.Name);
+        _logger.LogInformation(
+            "Set native AspectRatio '{AspectRatio}' on item {ItemId} ({ItemName}); Jellyfin will persist it with this metadata import.",
+            acceptedOriginalAspectRatio,
+            item.Id,
+            item.Name);
 
         return ItemUpdateType.MetadataImport;
     }
