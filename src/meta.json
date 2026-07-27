@@ -1,12 +1,12 @@
 {
     "category": "Metadata",
-    "changelog": "Initial Release\n",
-    "description": "OriginalAspectRatio is a plugin that automatically analyzes videos and sets the Original Aspect Ratio metadata field.\n",
+    "changelog": "Display saved aspect ratios in Jellyfin Web when JavaScript Injector or File Transformation is installed.\n",
+    "description": "OriginalAspectRatio analyzes videos, saves the native AspectRatio metadata field, and can display it in Jellyfin Web.\n",
     "guid": "1b77aa92-62b6-43d7-ae75-6ab2251c05a2",
     "name": "OriginalAspectRatio",
-    "overview": "Analyze and set Original Aspect Ratio metadata on Jellyfin",
+    "overview": "Analyze, save, and display original aspect ratios on Jellyfin",
     "owner": "RyanMelena",
-    "targetAbi": "10.10.0.0",
-    "timestamp": "2024-12-02T18:40:00Z",
-    "version": "1.0.2.0"
+    "targetAbi": "10.11.0.0",
+    "timestamp": "2026-07-27T20:00:11Z",
+    "version": "1.1.0.0"
 }
